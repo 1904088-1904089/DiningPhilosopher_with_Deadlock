@@ -1,65 +1,42 @@
-import java.util.concurrent.*;
-import java.util.ArrayList;
-import java.util.List;
-
 public class DiningPhilosophers {
-    public static final int NUM_TABLES = 5;
-    public static final int NUM_PHILOSOPHERS_PER_TABLE = 5;
-    public static final int THINK_TIME_MIN = 0;
-    public static final int THINK_TIME_MAX = 1000;  // in milliseconds
-    public static final int EAT_TIME_MIN = 0;
-    public static final int EAT_TIME_MAX = 500;  // in milliseconds
-    public static final int WAIT_TIME = 4000;  // in milliseconds
-    private static final List<Philosopher> sixthTable = new ArrayList<>();
-    private static final Object lock = new Object();
-
     public static void main(String[] args) {
-        Fork[][] forks = new Fork[NUM_TABLES][NUM_PHILOSOPHERS_PER_TABLE];
-        Thread[][] philosophers = new Thread[NUM_TABLES][NUM_PHILOSOPHERS_PER_TABLE];
+        // Create tables and philosophers
+        Table[] tables = new Table[5];
+        Table sixthTable = new Table(6);  // Sixth table with no philosophers initially
 
-        // Create forks
-        for (int i = 0; i < NUM_TABLES; i++) {
-            for (int j = 0; j < NUM_PHILOSOPHERS_PER_TABLE; j++) {
-                forks[i][j] = new Fork();
+        // Initialize 5 tables with 5 philosophers each
+        for (int i = 0; i < 5; i++) {
+            tables[i] = new Table(i);
+            for (int j = 0; j < 5; j++) {
+                Fork leftFork = tables[i].getLeftFork(j);
+                Fork rightFork = tables[i].getRightFork(j);
+                Philosopher philosopher = new Philosopher(Character.toString((char) ('A' + j + i * 5)), leftFork, rightFork, i, sixthTable);
+                tables[i].addPhilosopher(philosopher);
             }
         }
 
-        // Create philosophers and start them
-        char philosopherLabel = 'A';
-        for (int i = 0; i < NUM_TABLES; i++) {
-            for (int j = 0; j < NUM_PHILOSOPHERS_PER_TABLE; j++) {
-                Fork leftFork = forks[i][j];
-                Fork rightFork = forks[i][(j + 1) % NUM_PHILOSOPHERS_PER_TABLE];
-                Philosopher philosopher = new Philosopher(i, j, leftFork, rightFork, sixthTable, philosopherLabel);
-                philosophers[i][j] = new Thread(philosopher);
-                philosophers[i][j].start();
-                philosopherLabel++;
-            }
+        // Start philosopher threads
+        for (Table table : tables) {
+            table.startPhilosophers();
         }
-    }
 
-    public static void checkSixthTableDeadlock() {
-        synchronized (lock) {
-            if (sixthTable.size() == NUM_PHILOSOPHERS_PER_TABLE) {
-                System.out.println("Sixth table deadlocked. Last philosopher to join: " + sixthTable.get(NUM_PHILOSOPHERS_PER_TABLE - 1).philosopherLabel);
-                System.exit(0);  // Terminate the simulation
-            }
+        // Start deadlock detection threads
+        for (Table table : tables) {
+            new Thread(() -> table.detectDeadlock()).start();
         }
-    }
-}
 
-class Fork {
-    private final Semaphore semaphore = new Semaphore(1);
+        // Run the simulation for 60 seconds
+        try {
+            Thread.sleep(60000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
 
-    public void acquire() throws InterruptedException {
-        semaphore.acquire();
-    }
+        // Stop all philosophers
+        for (Table table : tables) {
+            table.stopPhilosophers();
+        }
 
-    public void release() {
-        semaphore.release();
-    }
-
-    public boolean isHeldByCurrentThread() {
-        return semaphore.availablePermits() == 0;
+        System.out.println("Simulation ended.");
     }
 }

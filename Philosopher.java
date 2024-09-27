@@ -1,93 +1,91 @@
-import java.util.concurrent.*;
 import java.util.Random;
-import java.util.List;
 
-public class Philosopher implements Runnable {
-    private final int tableNumber;
-    private final int philosopherNumber;
+public class Philosopher extends Thread {
+    private final String name;
     private final Fork leftFork;
     private final Fork rightFork;
-    private final List<Philosopher> sixthTable;
+    private final int tableId;
+    private final Table sixthTable;
     private final Random random = new Random();
-    final char philosopherLabel; // package-private access modifier
+    private volatile boolean isStopped = false;
 
-    private boolean movedToSixthTable = false;
-    
-    public Philosopher(int tableNumber, int philosopherNumber, Fork leftFork, Fork rightFork, List<Philosopher> sixthTable, char philosopherLabel) {
-        this.tableNumber = tableNumber;
-        this.philosopherNumber = philosopherNumber;
+    public Philosopher(String name, Fork leftFork, Fork rightFork, int tableId, Table sixthTable) {
+        this.name = name;
         this.leftFork = leftFork;
         this.rightFork = rightFork;
+        this.tableId = tableId;
         this.sixthTable = sixthTable;
-        this.philosopherLabel = philosopherLabel;
+    }
+
+    public void stopPhilosopher() {
+        isStopped = true;
     }
 
     @Override
     public void run() {
-        while (true) {
-            try {
-                think();
-                pickUpLeftFork();
-                pickUpRightFork();
+        while (!isStopped) {
+            think();
+            if (pickUpForks()) {
                 eat();
-                putDownLeftFork();
-                putDownRightFork();
+                putDownForks();
+            }
+        }
+    }
+
+    private void think() {
+        System.out.println(name + " is thinking at Table " + tableId);
+        try {
+            Thread.sleep(random.nextInt(2000));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private boolean pickUpForks() {
+        System.out.println(name + " at Table " + tableId + " is trying to pick up forks");
+        if (leftFork.pickUp()) {
+            System.out.println(name + " picked up left fork at Table " + tableId);
+            try {
+                Thread.sleep(100);  // Simulate waiting for right fork
+                if (rightFork.pickUp()) {
+                    System.out.println(name + " picked up right fork at Table " + tableId);
+                    return true;
+                } else {
+                    leftFork.putDown();
+                    System.out.println(name + " couldn't pick up right fork at Table " + tableId);
+                }
             } catch (InterruptedException e) {
-                System.out.println("Philosopher " + philosopherLabel + " on table " + tableNumber + " interrupted due to deadlock.");
-                dropForks();
-                moveToEmptyTable();
+                Thread.currentThread().interrupt();
             }
         }
+        return false;
     }
 
-    private void think() throws InterruptedException {
-        Thread.sleep(random.nextInt(DiningPhilosophers.THINK_TIME_MAX - DiningPhilosophers.THINK_TIME_MIN + 1) + DiningPhilosophers.THINK_TIME_MIN);
-    }
-
-    private void pickUpLeftFork() throws InterruptedException {
-        leftFork.acquire();
-        System.out.println("Philosopher " + philosopherLabel + " on table " + tableNumber + " picked up left fork.");
-    }
-
-    private void pickUpRightFork() throws InterruptedException {
-        Thread.sleep(DiningPhilosophers.WAIT_TIME);
-        rightFork.acquire();
-        System.out.println("Philosopher " + philosopherLabel + " on table " + tableNumber + " picked up right fork.");
-    }
-
-    private void eat() throws InterruptedException {
-        System.out.println("Philosopher " + philosopherLabel + " on table " + tableNumber + " is eating.");
-        Thread.sleep(random.nextInt(DiningPhilosophers.EAT_TIME_MAX - DiningPhilosophers.EAT_TIME_MIN + 1) + DiningPhilosophers.EAT_TIME_MIN);
-    }
-
-    private void putDownLeftFork() {
-        leftFork.release();
-        System.out.println("Philosopher " + philosopherLabel + " on table " + tableNumber + " put down left fork.");
-    }
-
-    private void putDownRightFork() {
-        rightFork.release();
-        System.out.println("Philosopher " + philosopherLabel + " on table " + tableNumber + " put down right fork.");
-    }
-
-    private void dropForks() {
-        if (leftFork.isHeldByCurrentThread()) {
-            leftFork.release();
+    private void eat() {
+        System.out.println(name + " is eating at Table " + tableId);
+        try {
+            Thread.sleep(random.nextInt(1000));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
-        if (rightFork.isHeldByCurrentThread()) {
-            rightFork.release();
-        }
-        System.out.println("Philosopher " + philosopherLabel + " on table " + tableNumber + " dropped forks.");
     }
 
-    private void moveToEmptyTable() {
-        synchronized (sixthTable) {
-            if (!movedToSixthTable && sixthTable.size() < DiningPhilosophers.NUM_PHILOSOPHERS_PER_TABLE) {
-                sixthTable.add(this);
-                movedToSixthTable = true;
-                System.out.println("Philosopher " + philosopherLabel + " moved to sixth table.");
-                DiningPhilosophers.checkSixthTableDeadlock();
-            }
-        }
+    private void putDownForks() {
+        System.out.println(name + " is putting down forks at Table " + tableId);
+        leftFork.putDown();
+        rightFork.putDown();
+    }
+
+    public void moveToSixthTable() {
+        sixthTable.addPhilosopher(this);
+        System.out.println(name + " has moved to Table 6.");
+    }
+
+    public String getPhilosopherName() {
+        return name;
+    }
+
+    public int getTableId() {
+        return tableId;
     }
 }
