@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 import java.util.Random;
 
@@ -90,3 +91,71 @@ public class Philosopher extends Thread {
         return tableId;
     }
 }
+=======
+import java.util.Random;
+
+public class Philosopher implements Runnable {
+    private final int id;
+    private final Fork leftFork;
+    private final Fork rightFork;
+    private final Random random;
+    private final Table table;
+    private boolean atSixthTable = false;
+
+    public Philosopher(int id, Fork leftFork, Fork rightFork, Table table) {
+        this.id = id;
+        this.leftFork = leftFork;
+        this.rightFork = rightFork;
+        this.table = table;
+        this.random = new Random();
+    }
+
+    public void run() {
+        try {
+            while (!table.isSixthTableDeadlocked()) {
+                think();
+                if (!table.isSixthTableDeadlocked()) {
+                    eat();
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void think() throws InterruptedException {
+        System.out.println("Philosopher " + id + " is thinking.");
+        Thread.sleep(random.nextInt(10000));  // Think for 0-10 seconds
+    }
+
+    private void eat() throws InterruptedException {
+        leftFork.lock();
+        try {
+            System.out.println("Philosopher " + id + " picked up left fork.");
+            Thread.sleep(4000);  // Wait 4 seconds before picking up the right fork
+            rightFork.lock();
+            try {
+                System.out.println("Philosopher " + id + " picked up right fork and is eating.");
+                Thread.sleep(random.nextInt(5000));  // Eat for 0-5 seconds
+            } finally {
+                rightFork.unlock();
+            }
+        } finally {
+            leftFork.unlock();
+        }
+    }
+
+    public void moveToSixthTable() {
+        this.atSixthTable = true;
+        System.out.println("Philosopher " + id + " moved to the sixth table.");
+    }
+
+    public boolean isAtSixthTable() {
+        return atSixthTable;
+    }
+
+    public int getId() {
+        return id;
+    }
+}
+>>>>>>> 70b9bb5 (Update Table class)
